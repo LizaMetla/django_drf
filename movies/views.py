@@ -12,12 +12,13 @@ from .serializers import (
 from .service import get_client_ip
 
 
-class MovieListView(APIView):
+class MovieListView(generics.ListAPIView):
     """Вывод списка фильмов"""
+    serializer_class = MovieListSerializer
 
-    def get(self, request):
+    def get_queryset(self):
         movies = Movie.objects.filter(draft=False).annotate(
-            rating_user=models.Count("ratings", filter=models.Q(ratings__ip=get_client_ip(request)))
+            rating_user=models.Count("ratings", filter=models.Q(ratings__ip=get_client_ip(self.request)))
         ).annotate(
             middle_star=models.Sum(models.F('ratings__star')) / models.Count(models.F('ratings'))
         )
@@ -27,9 +28,7 @@ class MovieListView(APIView):
         #    default=False,
         #    output_field=models.BooleanField()
         # ),
-
-        serializer = MovieListSerializer(movies, many=True)
-        return Response(serializer.data)
+        return movies
 
 
 class MovieDetailView(APIView):
@@ -42,24 +41,17 @@ class MovieDetailView(APIView):
         return Response(serializer.data)
 
 
-class ReviewCreateView(APIView):
+class ReviewCreateView(generics.CreateAPIView):
     serializer_class = ReviewCreateSerializer
 
-    def post(self, request, *args, **kwargs):
-        review = ReviewCreateSerializer(data=request.data)
-        review.is_valid(raise_exception=True)
-        review.save()
-        return Response(status=201)
 
-
-class AddStarRatingView(APIView):
+class AddStarRatingView(generics.CreateAPIView):
     """Добавление рейтинга фильму"""
 
-    def post(self, request):
-        serializer = CreateRatingSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save(ip=get_client_ip(request))
-        return Response(status=201)
+    serializer_class = CreateRatingSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(ip=get_client_ip(self.request))
 
 
 class ActorsListView(generics.ListAPIView):
